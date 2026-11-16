@@ -1,9 +1,0 @@
-{
-  "appId": "com.medqueue.cloud",
-  "appName": "MedQueue Cloud",
-  "webDir": "www",
-  "bundledWebRuntime": false,
-  "android": {
-    "allowMixedContent": true
-  }
-}
