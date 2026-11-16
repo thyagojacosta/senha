@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0f172a" />
+  <title>MedQueue Cloud - Sistema de Senhas Médicas</title>
+  <link rel="manifest" href="manifest.json" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
+    @media print {
+      body * { visibility: hidden; }
+      #print-ticket, #print-ticket * { visibility: visible; }
+      #print-ticket {
+        position: fixed;
+        left: 0;
+        top: 0;
+        width: 80mm;
+        padding: 4mm;
+        background: #fff;
+        color: #000;
+      }
+    }
+    @keyframes pulse-call {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.03); }
+    }
+    .animate-call { animation: pulse-call 1.2s ease-in-out 3; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col select-none">
+
+  <!-- Barra de Navegação Superior -->
+  <header id="top-nav" class="bg-slate-900 border-b border-slate-800 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+    <div class="flex items-center gap-2.5">
+      <div class="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 font-black text-lg">+</div>
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="font-bold text-base leading-tight text-white">MedQueue</h1>
+          <span id="conn-badge" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">Configurar Supabase</span>
+        </div>
+        <p class="text-[11px] text-slate-400">Sincronização Multi-Dispositivo em Tempo Real</p>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-2 flex-wrap">
+      <nav class="flex bg-slate-950 p-1 rounded-xl border border-slate-800">
+        <button onclick="setMode('totem')" id="tab-totem" class="px-3.5 py-1.5 rounded-lg text-xs font-semibold transition bg-emerald-600 text-white">Totem</button>
+        <button onclick="setMode('tv')" id="tab-tv" class="px-3.5 py-1.5 rounded-lg text-xs font-semibold transition text-slate-400 hover:text-white">Painel TV</button>
+        <button onclick="setMode('admin')" id="tab-admin" class="px-3.5 py-1.5 rounded-lg text-xs font-semibold transition text-slate-400 hover:text-white">Recepção / Médico</button>
+      </nav>
+      <button onclick="openConfigModal()" title="Configurar Supabase" class="p-2 rounded-xl bg-slate-950 border border-slate-800 hover:border-slate-600 text-slate-300 text-xs font-semibold">
+        ⚙ Cloud
+      </button>
+    </div>
+  </header>
+
+  <!-- MODO 1: TOTEM -->
+  <main id="view-totem" class="flex-1 flex flex-col items-center justify-center p-6 max-w-4xl mx-auto w-full">
+    <div class="text-center mb-8">
+      <span class="inline-block px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-semibold border border-emerald-500/20 mb-3">AUTOATENDIMENTO</span>
+      <h2 class="text-3xl md:text-4xl font-extrabold text-white tracking-tight">Retire sua senha</h2>
+      <p class="text-slate-400 mt-2 text-sm md:text-base">Selecione o tipo de atendimento desejado abaixo</p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-5 w-full">
+      <button onclick="issueTicket('N', 'Atendimento Normal')" class="group bg-slate-900 hover:bg-slate-800/90 border-2 border-slate-800 hover:border-sky-500 rounded-2xl p-7 text-left transition active:scale-95 flex flex-col justify-between min-h-[190px]">
+        <div class="w-12 h-12 rounded-xl bg-sky-500/15 text-sky-400 flex items-center justify-center font-black text-2xl mb-4">N</div>
+        <div>
+          <h3 class="text-xl font-bold text-white group-hover:text-sky-400 transition">Atendimento Normal</h3>
+          <p class="text-xs text-slate-400 mt-1">Consultas agendadas e triagem geral</p>
+        </div>
+      </button>
+
+      <button onclick="issueTicket('P', 'Atendimento Prioritário')" class="group bg-slate-900 hover:bg-slate-800/90 border-2 border-slate-800 hover:border-amber-500 rounded-2xl p-7 text-left transition active:scale-95 flex flex-col justify-between min-h-[190px]">
+        <div class="w-12 h-12 rounded-xl bg-amber-500/15 text-amber-400 flex items-center justify-center font-black text-2xl mb-4">P</div>
+        <div>
+          <h3 class="text-xl font-bold text-white group-hover:text-amber-400 transition">Atendimento Prioritário</h3>
+          <p class="text-xs text-slate-400 mt-1">Idosos (60+), gestantes, lactantes, PCD e autistas</p>
+        </div>
+      </button>
+
+      <button onclick="issueTicket('R', 'Retorno / Exames')" class="group bg-slate-900 hover:bg-slate-800/90 border-2 border-slate-800 hover:border-emerald-500 rounded-2xl p-7 text-left transition active:scale-95 flex flex-col justify-between min-h-[190px]">
+        <div class="w-12 h-12 rounded-xl bg-emerald-500/15 text-emerald-400 flex items-center justify-center font-black text-2xl mb-4">R</div>
+        <div>
+          <h3 class="text-xl font-bold text-white group-hover:text-emerald-400 transition">Retorno / Exames</h3>
+          <p class="text-xs text-slate-400 mt-1">Entrega de exames e reavaliação médica</p>
+        </div>
+      </button>
+    </div>
+  </main>
+
+  <!-- MODO 2: PAINEL TV -->
+  <main id="view-tv" class="hidden flex-1 flex flex-col p-6 max-w-7xl mx-auto w-full gap-6">
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <span class="w-3 h-3 rounded-full bg-emerald-500 animate-ping"></span>
+        <span class="text-sm font-semibold text-slate-300 uppercase tracking-wider">Chamada em Tempo Real</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <button onclick="toggleVoice()" id="btn-voice" class="px-3 py-1.5 rounded-lg bg-slate-800 text-xs font-medium text-emerald-400 border border-slate-700">Voz: ATIVA</button>
+        <button onclick="toggleFullscreen()" class="px-3 py-1.5 rounded-lg bg-slate-800 text-xs font-medium text-slate-200 border border-slate-700">Tela Cheia</button>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1">
+      <!-- Senha Atual -->
+      <div id="tv-current-card" class="lg:col-span-2 bg-gradient-to-br from-slate-900 to-slate-950 border-2 border-emerald-500/40 rounded-3xl p-8 flex flex-col items-center justify-center text-center shadow-2xl">
+        <span class="text-sm uppercase tracking-[0.25em] text-emerald-400 font-bold mb-2">Senha Atual</span>
+        <div id="tv-ticket-code" class="text-8xl md:text-9xl font-black text-white tracking-tight my-4">---</div>
+        <div id="tv-ticket-type" class="px-4 py-1.5 rounded-full bg-slate-800 text-slate-300 text-sm font-semibold mb-6">Aguardando chamada</div>
+        <div class="w-full max-w-md border-t border-slate-800 pt-6">
+          <p class="text-xs uppercase tracking-widest text-slate-400">Dirija-se ao</p>
+          <p id="tv-room-name" class="text-3xl md:text-4xl font-extrabold text-emerald-400 mt-1">---</p>
+        </div>
+      </div>
+
+      <!-- Histórico -->
+      <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 flex flex-col">
+        <h3 class="text-sm font-bold uppercase tracking-wider text-slate-400 mb-4">Últimas Chamadas</h3>
+        <div id="tv-history" class="flex-1 flex flex-col gap-3 overflow-y-auto">
+          <p class="text-slate-500 text-sm">Nenhuma senha chamada ainda.</p>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- MODO 3: RECEPÇÃO / MÉDICO -->
+  <main id="view-admin" class="hidden flex-1 p-6 max-w-6xl mx-auto w-full grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-2 flex flex-col gap-6">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+        <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+          <div>
+            <h2 class="text-xl font-bold text-white">Controle de Chamadas</h2>
+            <p class="text-xs text-slate-400">Selecione seu consultório e chame o próximo paciente</p>
+          </div>
+          <select id="admin-room-select" class="bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm font-semibold text-white">
+            <option value="Consultório 01">Consultório 01</option>
+          </select>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <button onclick="callNextTicket()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 px-6 rounded-xl text-base transition shadow-lg shadow-emerald-950/50 active:scale-95">
+            Chamar Próxima Senha
+          </button>
+          <button onclick="recallCurrent()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold py-4 px-6 rounded-xl text-base transition border border-slate-700 active:scale-95">
+            Chamar Novamente
+          </button>
+        </div>
+      </div>
+
+      <!-- Fila de Espera -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex-1">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="font-bold text-white">Fila de Espera (<span id="queue-count">0</span>)</h3>
+          <button onclick="resetSystem()" class="text-xs text-rose-400 hover:text-rose-300 font-semibold">Zerar Dia</button>
+        </div>
+        <div id="admin-queue-list" class="space-y-2.5 max-h-[360px] overflow-y-auto">
+          <p class="text-slate-500 text-sm">Fila vazia no momento.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Resumo e Consultórios -->
+    <div class="flex flex-col gap-6">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+        <h3 class="font-bold text-white mb-4">Resumo do Dia</h3>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="bg-slate-950 p-4 rounded-xl border border-slate-800">
+            <p class="text-xs text-slate-400">Emitidas</p>
+            <p id="stat-total" class="text-2xl font-black text-white mt-1">0</p>
+          </div>
+          <div class="bg-slate-950 p-4 rounded-xl border border-slate-800">
+            <p class="text-xs text-slate-400">Atendidas</p>
+            <p id="stat-called" class="text-2xl font-black text-emerald-400 mt-1">0</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+        <h3 class="font-bold text-white mb-3">Adicionar Sala / Guichê</h3>
+        <div class="flex gap-2">
+          <input id="new-room-input" type="text" placeholder="Ex: Consultório 03" class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white" />
+          <button onclick="addRoom()" class="bg-sky-600 hover:bg-sky-500 px-4 py-2 rounded-xl text-sm font-bold text-white">+</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Modal de Senha Gerada -->
+  <div id="ticket-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+    <div class="bg-slate-900 border border-slate-700 rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl">
+      <span class="text-xs font-bold uppercase tracking-widest text-emerald-400">Senha Gerada</span>
+      <div id="modal-code" class="text-6xl font-black text-white my-4">N-001</div>
+      <p id="modal-type" class="text-sm text-slate-300 font-medium mb-1">Atendimento Normal</p>
+      <p id="modal-time" class="text-xs text-slate-500 mb-6">--/--/---- --:--</p>
+      <div class="flex gap-3">
+        <button onclick="window.print()" class="flex-1 bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-xl text-sm font-semibold border border-slate-700">Imprimir 80mm</button>
+        <button onclick="closeModal()" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-xl text-sm font-bold">Concluir</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Configuração Supabase -->
+  <div id="config-modal" class="hidden fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+    <div class="bg-slate-900 border border-slate-700 rounded-3xl p-6 max-w-md w-full shadow-2xl">
+      <h3 class="text-lg font-bold text-white mb-1">Conexão Supabase Cloud</h3>
+      <p class="text-xs text-slate-400 mb-4">Conecte o Totem, o Painel TV e os Consultórios ao mesmo banco em tempo real.</p>
+      <div class="space-y-3">
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Project URL</label>
+          <input id="cfg-url" type="url" placeholder="https://seuprojeto.supabase.co" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white" />
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Anon Public Key</label>
+          <input id="cfg-key" type="text" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6..." class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white" />
+        </div>
+      </div>
+      <div class="flex gap-2 mt-6">
+        <button onclick="closeConfigModal()" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-xl text-xs font-semibold">Cancelar</button>
+        <button onclick="saveSupabaseConfig()" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-2.5 rounded-xl text-xs font-bold">Salvar e Conectar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Área de Impressão Térmica 80mm -->
+  <div id="print-ticket" class="hidden">
+    <div style="text-align:center; font-family: monospace;">
+      <strong style="font-size:16px;">CLÍNICA MÉDICA</strong><br/>
+      <span style="font-size:12px;">Comprovante de Senha</span>
+      <hr style="margin:8px 0; border-top:1px dashed #000;"/>
+      <div id="print-code" style="font-size:38px; font-weight:bold; margin:8px 0;">N-001</div>
+      <div id="print-type" style="font-size:14px; font-weight:bold;">Atendimento Normal</div>
+      <div id="print-time" style="font-size:11px; margin-top:6px;">--/--/---- --:--</div>
+      <hr style="margin:8px 0; border-top:1px dashed #000;"/>
+      <span style="font-size:11px;">Aguarde ser chamado no painel.</span>
+    </div>
+  </div>
+
+  <script>
+    const CFG_KEY = 'medqueue_supabase_cfg_v1';
+    let supabaseClient = null;
+    let voiceEnabled = true;
+    let priorityStreak = 0;
+    let lastAnnouncedTimestamp = null;
+
+    let appData = {
+      waiting: [],
+      called: [],
+      rooms: ['Consultório 01', 'Consultório 02', 'Triagem / Enfermagem', 'Recepção Guichê 01']
+    };
+
+    function getSavedConfig() {
+      return JSON.parse(localStorage.getItem(CFG_KEY) || 'null');
+    }
+
+    function openConfigModal() {
+      const cfg = getSavedConfig();
+      if (cfg) {
+        document.getElementById('cfg-url').value = cfg.url || '';
+        document.getElementById('cfg-key').value = cfg.key || '';
+      }
+      document.getElementById('config-modal').classList.remove('hidden');
+    }
+
+    function closeConfigModal() {
+      document.getElementById('config-modal').classList.add('hidden');
+    }
+
+    async function saveSupabaseConfig() {
+      const url = document.getElementById('cfg-url').value.trim();
+      const key = document.getElementById('cfg-key').value.trim();
+      if (!url || !key) return alert('Preencha a URL e a Anon Key do Supabase.');
+      localStorage.setItem(CFG_KEY, JSON.stringify({ url, key }));
+      closeConfigModal();
+      await initSupabase();
+    }
+
+    async function initSupabase() {
+      const cfg = getSavedConfig();
+      const badge = document.getElementById('conn-badge');
+      if (!cfg || !cfg.url || !cfg.key) {
+        badge.textContent = 'Configurar Supabase';
+        badge.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30';
+        openConfigModal();
+        return;
+      }
+
+      try {
+        supabaseClient = window.supabase.createClient(cfg.url, cfg.key);
+        badge.textContent = 'Online • Realtime';
+        badge.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
+
+        await syncFromCloud(false);
+
+        supabaseClient
+          .channel('medqueue-realtime')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'medqueue_tickets' }, async (payload) => {
+            await syncFromCloud(true);
+          })
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'medqueue_rooms' }, async () => {
+            await syncRooms();
+          })
+          .subscribe();
+
+        await syncRooms();
+      } catch (err) {
+        console.error(err);
+        badge.textContent = 'Erro de Conexão';
+        badge.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30';
+      }
+    }
+
+    function getTodayISOStart() {
+      const d = new Date();
+      d.setHours(0, 0, 0, 0);
+      return d.toISOString();
+    }
+
+    async function syncRooms() {
+      if (!supabaseClient) return;
+      const { data } = await supabaseClient.from('medqueue_rooms').select('name').order('created_at', { ascending: true });
+      if (data && data.length > 0) {
+        appData.rooms = data.map(r => r.name);
+        renderRooms();
+      }
+    }
+
+    async function syncFromCloud(triggerVoiceOnNewCall = false) {
+      if (!supabaseClient) return;
+      const todayStart = getTodayISOStart();
+
+      const { data: tickets, error } = await supabaseClient
+        .from('medqueue_tickets')
+        .select('*')
+        .gte('created_at', todayStart)
+        .order('created_at', { ascending: true });
+
+      if (error || !tickets) return;
+
+      appData.waiting = tickets.filter(t => t.status === 'waiting');
+      appData.called = tickets
+        .filter(t => t.status === 'called')
+        .sort((a, b) => new Date(b.called_at) - new Date(a.called_at));
+
+      const latest = appData.called[0] || null;
+      if (triggerVoiceOnNewCall && latest && latest.called_at !== lastAnnouncedTimestamp) {
+        lastAnnouncedTimestamp = latest.called_at;
+        announceCall(latest);
+      } else if (latest && !lastAnnouncedTimestamp) {
+        lastAnnouncedTimestamp = latest.called_at;
+      }
+
+      renderAll();
+    }
+
+    function setMode(mode) {
+      ['totem', 'tv', 'admin'].forEach(m => {
+        document.getElementById('view-' + m).classList.toggle('hidden', m !== mode);
+        const tab = document.getElementById('tab-' + m);
+        tab.className = m === mode
+          ? 'px-3.5 py-1.5 rounded-lg text-xs font-semibold transition bg-emerald-600 text-white'
+          : 'px-3.5 py-1.5 rounded-lg text-xs font-semibold transition text-slate-400 hover:text-white';
+      });
+      renderAll();
+    }
+
+    async function issueTicket(prefix, label) {
+      if (!supabaseClient) return openConfigModal();
+
+      const todayStart = getTodayISOStart();
+      const { count } = await supabaseClient
+        .from('medqueue_tickets')
+        .select('*', { count: 'exact', head: true })
+        .eq('prefix', prefix)
+        .gte('created_at', todayStart);
+
+      const nextNum = (count || 0) + 1;
+      const code = `${prefix}-${String(nextNum).padStart(3, '0')}`;
+      const nowStr = new Date().toLocaleString('pt-BR');
+
+      const { error } = await supabaseClient
+        .from('medqueue_tickets')
+        .insert([{ code, prefix, label, status: 'waiting' }]);
+
+      if (error) return alert('Erro ao gerar senha no Supabase: ' + error.message);
+
+      document.getElementById('modal-code').textContent = code;
+      document.getElementById('modal-type').textContent = label;
+      document.getElementById('modal-time').textContent = nowStr;
+      document.getElementById('print-code').textContent = code;
+      document.getElementById('print-type').textContent = label;
+      document.getElementById('print-time').textContent = nowStr;
+      document.getElementById('ticket-modal').classList.remove('hidden');
+
+      await syncFromCloud(false);
+    }
+
+    function closeModal() {
+      document.getElementById('ticket-modal').classList.add('hidden');
+    }
+
+    async function callNextTicket() {
+      if (!supabaseClient) return openConfigModal();
+      if (appData.waiting.length === 0) return alert('Não há senhas na fila de espera.');
+
+      const room = document.getElementById('admin-room-select').value;
+      let target = null;
+      const pTicket = appData.waiting.find(t => t.prefix === 'P');
+
+      if (pTicket && priorityStreak < 2) {
+        target = pTicket;
+        priorityStreak++;
+      } else {
+        target = appData.waiting[0];
+        if (target.prefix !== 'P') priorityStreak = 0;
+      }
+
+      const { error } = await supabaseClient
+        .from('medqueue_tickets')
+        .update({
+          status: 'called',
+          room: room,
+          called_at: new Date().toISOString()
+        })
+        .eq('id', target.id);
+
+      if (error) return alert('Erro ao chamar senha: ' + error.message);
+      await syncFromCloud(true);
+    }
+
+    async function recallCurrent() {
+      if (!supabaseClient) return openConfigModal();
+      const current = appData.called[0];
+      if (!current) return;
+
+      await supabaseClient
+        .from('medqueue_tickets')
+        .update({ called_at: new Date().toISOString() })
+        .eq('id', current.id);
+
+      await syncFromCloud(true);
+    }
+
+    function playChime() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        [523.25, 659.25, 783.99].forEach((freq, i) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.16);
+          gain.gain.setValueAtTime(0.18, ctx.currentTime + i * 0.16);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.16 + 0.5);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(ctx.currentTime + i * 0.16);
+          osc.stop(ctx.currentTime + i * 0.16 + 0.5);
+        });
+      } catch (e) {}
+    }
+
+    function announceCall(ticket) {
+      playChime();
+      const card = document.getElementById('tv-current-card');
+      card.classList.remove('animate-call');
+      void card.offsetWidth;
+      card.classList.add('animate-call');
+
+      if (voiceEnabled && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const text = `Senha ${ticket.code.replace('-', ' ')}, ${ticket.room}`;
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.lang = 'pt-BR';
+        utter.rate = 0.95;
+        window.speechSynthesis.speak(utter);
+      }
+    }
+
+    function toggleVoice() {
+      voiceEnabled = !voiceEnabled;
+      document.getElementById('btn-voice').textContent = voiceEnabled ? 'Voz: ATIVA' : 'Voz: MUDA';
+    }
+
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {});
+        document.getElementById('top-nav').classList.add('hidden');
+      } else {
+        document.exitFullscreen();
+        document.getElementById('top-nav').classList.remove('hidden');
+      }
+    }
+
+    document.addEventListener('fullscreenchange', () => {
+      if (!document.fullscreenElement) {
+        document.getElementById('top-nav').classList.remove('hidden');
+      }
+    });
+
+    async function addRoom() {
+      if (!supabaseClient) return openConfigModal();
+      const inp = document.getElementById('new-room-input');
+      const val = inp.value.trim();
+      if (!val) return;
+      await supabaseClient.from('medqueue_rooms').insert([{ name: val }]);
+      inp.value = '';
+      await syncRooms();
+    }
+
+    async function resetSystem() {
+      if (!supabaseClient) return openConfigModal();
+      if (!confirm('Deseja limpar todas as senhas de hoje no banco Supabase?')) return;
+      const todayStart = getTodayISOStart();
+      await supabaseClient.from('medqueue_tickets').delete().gte('created_at', todayStart);
+      priorityStreak = 0;
+      lastAnnouncedTimestamp = null;
+      await syncFromCloud(false);
+    }
+
+    function renderRooms() {
+      const select = document.getElementById('admin-room-select');
+      const currentVal = select.value;
+      select.innerHTML = appData.rooms.map(r => `<option value="${r}">${r}</option>`).join('');
+      if (appData.rooms.includes(currentVal)) select.value = currentVal;
+    }
+
+    function renderAll() {
+      const current = appData.called[0] || null;
+      if (current) {
+        document.getElementById('tv-ticket-code').textContent = current.code;
+        document.getElementById('tv-ticket-type').textContent = current.label;
+        document.getElementById('tv-room-name').textContent = current.room || '---';
+      } else {
+        document.getElementById('tv-ticket-code').textContent = '---';
+        document.getElementById('tv-ticket-type').textContent = 'Aguardando chamada';
+        document.getElementById('tv-room-name').textContent = '---';
+      }
+
+      const histEl = document.getElementById('tv-history');
+      const pastCalls = appData.called.slice(1, 6);
+      histEl.innerHTML = pastCalls.length
+        ? pastCalls.map(h => {
+            const timeFormatted = h.called_at ? new Date(h.called_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '';
+            return `
+              <div class="bg-slate-950 border border-slate-800 rounded-2xl p-3.5 flex items-center justify-between">
+                <div>
+                  <p class="text-xl font-black text-white">${h.code}</p>
+                  <p class="text-xs text-slate-400">${h.room || ''}</p>
+                </div>
+                <span class="text-xs text-slate-500">${timeFormatted}</span>
+              </div>
+            `;
+          }).join('')
+        : '<p class="text-slate-500 text-sm">Nenhuma senha anterior.</p>';
+
+      document.getElementById('queue-count').textContent = appData.waiting.length;
+      document.getElementById('stat-total').textContent = appData.waiting.length + appData.called.length;
+      document.getElementById('stat-called').textContent = appData.called.length;
+
+      const qList = document.getElementById('admin-queue-list');
+      qList.innerHTML = appData.waiting.length
+        ? appData.waiting.map(q => {
+            const createdFormatted = q.created_at ? new Date(q.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '';
+            return `
+              <div class="bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                  <span class="font-black text-base ${q.prefix === 'P' ? 'text-amber-400' : q.prefix === 'R' ? 'text-emerald-400' : 'text-sky-400'}">${q.code}</span>
+                  <span class="text-xs text-slate-300">${q.label}</span>
+                </div>
+                <span class="text-[11px] text-slate-500">${createdFormatted}</span>
+              </div>
+            `;
+          }).join('')
+        : '<p class="text-slate-500 text-sm">Fila vazia no momento.</p>';
+
+      renderRooms();
+    }
+
+    initSupabase();
+  </script>
+</body>
+</html>
